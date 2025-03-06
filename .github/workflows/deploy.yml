@@ -1,0 +1,94 @@
+# variaveis/secrets de repositório que devem ser criadas
+# criar também dois environments no repositorio dev e prod
+# - AWS_REGION / região da aws
+# - BACKEND_BUCKET / nome do bucket s3 para armazenar o estado do terraform
+# - BACKEND_REGION / região do bucket s3
+# - AWS_ASSUME_ROLE_ARN / arn da role que o workflow vai assumir para executar o terraform
+
+name: 'Deploy Workflow'
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      # somente executa o workflow se houver alterações no diretórios listados
+      # possivel usar o paths-ignore para ignorar diretórios
+      - 'infra/**'
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    # dentro do repositorio foi criado 2 enviroments dev e prod. 
+    # um para o branch develop e outro para a branch main.
+    # cada environment do repositorio possui variaveis e secrets diferentes
+    # assim é possivel recuperar envs e secrets de acordo com o ambiente de forma dinamica.
+    # aqui é o enviroment é selecionado de acordo com a branch que disparou o workflow
+    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      # aqui vão as variaveis de ambiente dentro da vm do workflow.
+      # variaveis de ambiente no terraform são definidas com o prefixo TF_VAR_ e são recuperadas
+      # de acordo com o environment selecionado pelo job
+      ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+      TF_VAR_project_name: ${{ github.event.repository.name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Read destroy configuration
+        id: read-destroy-config
+        run: |
+          DESTROY="$(jq -r ".$ENVIRONMENT" ./infra/destroy_config.json)"
+          echo "destroy=$(echo $DESTROY)" >> $GITHUB_OUTPUT
+
+      - name: Terraform Init
+        run: |
+          cd infra && terraform init \
+            -backend-config="bucket=${{ vars.BACKEND_BUCKET }}" \
+            -backend-config="key=${{ github.event.repository.name }}" \
+            -backend-config="region=${{ vars.BACKEND_REGION }}" \
+            -backend-config="use_lockfile=true"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Destroy
+        if: steps.read-destroy-config.outputs.destroy == 'true'
+        id: terraform-destroy
+        run: cd infra &&
+          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
+          terraform destroy -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -auto-approve
+
+      - name: Terraform Plan
+        if: steps.read-destroy-config.outputs.destroy != 'true'
+        id: terraform-plan
+        run: cd infra &&
+          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
+          terraform plan -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -out="$ENVIRONMENT.plan"
+
+      - name: Terraform Apply
+        if: steps.read-destroy-config.outputs.destroy != 'true'
+        id: terraform-apply
+        run: cd infra &&
+          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
+          terraform apply "$ENVIRONMENT.plan"
+
+      
