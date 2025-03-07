@@ -1,9 +1,12 @@
 # variaveis/secrets de repositório que devem ser criadas
 # criar também dois environments no repositorio dev e prod
-# - AWS_REGION / região da aws
-# - BACKEND_BUCKET / nome do bucket s3 para armazenar o estado do terraform
-# - BACKEND_REGION / região do bucket s3
-# - AWS_ASSUME_ROLE_ARN / arn da role que o workflow vai assumir para executar o terraform
+# - DEFAULT_AWS_REGION / região da aws
+# - TERRAFORM_BACKEND_BUCKET / nome do bucket s3 para armazenar o estado do terraform
+# - TERRAFORM_BACKEND_REGION / região do bucket s3 do backend do terraform
+# - AWS_ASSUME_ROLE_ARN / arn da role que o workflow vai assumir com openid connect
+# - SAM_STACK_NAME / nome do stack do sam
+# - SAM_S3_BUCKET / nome do bucket s3 para armazenar o artefato do sam
+# - SAM_AWS_REGION / região do bucket s3 do sam
 
 name: 'Deploy Workflow'
 
@@ -57,12 +60,7 @@ jobs:
         uses: ./.github/actions/configure-aws-credentials
         with:
           role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}          
-
-      # - name: Setup python
-      #   uses: actions/setup-python@v5
-      #   with:
-      #     python-version: '3.13' 
+          aws-region: ${{ secrets.AWS_REGION_DEFAULT }}          
       
       - name: Install AWS SAM CLI
         uses: aws-actions/setup-sam@v2      
@@ -75,15 +73,15 @@ jobs:
           cd sam-app
           sam delete \
           --stack-name ${{ secrets.SAM_STACK_NAME }} \
-          --region ${{ secrets.AWS_REGION }} \
+          --region ${{ secrets.SAM_AWS_REGION }} \
           --no-prompts             
 
       - name: Terraform Init
         run: |
           cd infra && terraform init \
-            -backend-config="bucket=${{ secrets.BACKEND_BUCKET }}" \
+            -backend-config="bucket=${{ secrets.TERRAFORM_BACKEND_BUCKET }}" \
             -backend-config="key=${{ github.event.repository.name }}" \
-            -backend-config="region=${{ secrets.BACKEND_REGION }}" \
+            -backend-config="region=${{ secrets.TERRAFORM_BACKEND_REGION }}" \
             -backend-config="use_lockfile=true"                     
             
       - name: Terraform Destroy
@@ -113,11 +111,10 @@ jobs:
         uses: actions/checkout@v4      
       
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: ./.github/actions/configure-aws-credentials
         with:
           role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
-          role-session-name: GitHub_to_AWS_via_FederatedOIDC
-          aws-region: ${{ secrets.AWS_REGION }}     
+          aws-region: ${{ secrets.AWS_REGION_DEFAULT }}    
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -126,9 +123,9 @@ jobs:
       - name: Terraform Init
         run: |
           cd infra && terraform init \
-            -backend-config="bucket=${{ secrets.BACKEND_BUCKET }}" \
+            -backend-config="bucket=${{ secrets.TERRAFORM_BACKEND_BUCKET }}" \
             -backend-config="key=${{ github.event.repository.name }}" \
-            -backend-config="region=${{ secrets.BACKEND_REGION }}" \
+            -backend-config="region=${{ secrets.TERRAFORM_BACKEND_REGION }}" \
             -backend-config="use_lockfile=true"
 
       - name: Terraform Validate
@@ -159,11 +156,10 @@ jobs:
       uses: actions/checkout@v4      
 
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: ./.github/actions/configure-aws-credentials
       with:
         role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
-        role-session-name: GitHub_to_AWS_via_FederatedOIDC
-        aws-region: ${{ secrets.AWS_REGION }}    
+        aws-region: ${{ secrets.AWS_REGION_DEFAULT }}    
 
     - name: Setup python
       uses: actions/setup-python@v5
@@ -179,8 +175,8 @@ jobs:
         sam build
         sam deploy \
         --stack-name ${{ secrets.SAM_STACK_NAME }} \
-        --s3-bucket ${{ secrets.AWS_S3_SAM_BUCKET }} \
+        --s3-bucket ${{ secrets.SAM_S3_BUCKET }} \
         --capabilities CAPABILITY_IAM \
-        --region ${{ secrets.AWS_REGION }} \
+        --region ${{ secrets.SAM_AWS_REGION }} \
         --no-confirm-changeset \
         --no-fail-on-empty-changeset         
