@@ -46,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+      TF_VAR_project_name: ${{ github.event.repository.name }}      
     steps:
       - name: Checkout code
         uses: actions/checkout@v4      
