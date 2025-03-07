@@ -17,100 +17,97 @@ on:
       # possivel usar o paths-ignore para ignorar diretórios
       - 'infra/**'
       - 'sam-app/**'
+      - 'destroy_config.json'
 permissions:
   id-token: write
   contents: read
 env:
+  # aqui vão as variaveis globais de ambiente do workflow.
+  # variaveis de ambiente no terraform são definidas com o prefixo TF_VAR_ e são recuperadas
+  # de acordo com o environment selecionado pelo job
   ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+  TF_VAR_project_name: ${{ github.event.repository.name }}
 
 jobs:
-  # check_destroy:
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     destroy: ${{ steps.read-destroy-config.outputs.destroy }}
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
+  check_destroy:
+    runs-on: ubuntu-latest
+    outputs:
+      destroy: ${{ steps.read-destroy-config.outputs.destroy }}
+    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  #     - name: Read destroy configuration
-  #       id: read-destroy-config
-  #       run: |
-  #         DESTROY="$(jq -r ".$ENVIRONMENT" ./infra/destroy_config.json)"
-  #         echo $DESTROY
-  #         echo "destroy=$(echo $DESTROY)" >> $GITHUB_OUTPUT
+      - name: Read destroy configuration
+        id: read-destroy-config
+        run: |
+          DESTROY="$(jq -r ".$ENVIRONMENT" ./infra/destroy_config.json)"
+          echo $DESTROY
+          echo "destroy=$(echo $DESTROY)" >> $GITHUB_OUTPUT
 
-  # destroy-infra:
-  #   needs: check_destroy
-  #   if: needs.check_destroy.outputs.destroy == 'true'
-  #   # environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     TF_VAR_project_name: ${{ github.event.repository.name }}      
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4      
+  destroy-infra:
+    needs: check_destroy
+    if: needs.check_destroy.outputs.destroy == 'true'
+    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+    runs-on: ubuntu-latest   
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4      
     
-  #     - name: Configure AWS credentials
-  #       uses: ./.github/actions/configure-aws-credentials
-  #       with:
-  #         role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
-  #         aws-region: ${{ secrets.AWS_REGION }}          
+      - name: Configure AWS credentials
+        uses: ./.github/actions/configure-aws-credentials
+        with:
+          role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}          
 
-  #     - name: Setup python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.13' 
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13' 
       
-  #     - name: Install AWS SAM CLI
-  #       uses: aws-actions/setup-sam@v2      
+      - name: Install AWS SAM CLI
+        uses: aws-actions/setup-sam@v2      
           
-  #     - name: Setup Terraform
-  #       uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-  #     - name: Destroy Sam
-  #       run: |
-  #         cd sam-app
-  #         sam delete \
-  #         --stack-name ${{ secrets.SAM_STACK_NAME }} \
-  #         --region ${{ secrets.AWS_REGION }} \
-  #         --no-prompts             
+      - name: Destroy Sam
+        run: |
+          cd sam-app
+          sam delete \
+          --stack-name ${{ secrets.SAM_STACK_NAME }} \
+          --region ${{ secrets.AWS_REGION }} \
+          --no-prompts             
 
-  #     - name: Terraform Init
-  #       run: |
-  #         cd infra && terraform init \
-  #           -backend-config="bucket=${{ secrets.BACKEND_BUCKET }}" \
-  #           -backend-config="key=${{ github.event.repository.name }}" \
-  #           -backend-config="region=${{ secrets.BACKEND_REGION }}" \
-  #           -backend-config="use_lockfile=true"                     
+      - name: Terraform Init
+        run: |
+          cd infra && terraform init \
+            -backend-config="bucket=${{ secrets.BACKEND_BUCKET }}" \
+            -backend-config="key=${{ github.event.repository.name }}" \
+            -backend-config="region=${{ secrets.BACKEND_REGION }}" \
+            -backend-config="use_lockfile=true"                     
             
-  #     - name: Terraform Destroy
-  #       id: terraform-destroy
-  #       run: cd infra &&
-  #         terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
-  #         terraform destroy -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -auto-approve
+      - name: Terraform Destroy
+        id: terraform-destroy
+        run: cd infra &&
+          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
+          terraform destroy -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -auto-approve
 
   terraform:
     # depende do job check_destroy
-    # needs: check_destroy
+    needs: check_destroy
     # executa somente se o destroy for diferente de true
-    # if: needs.check_destroy.outputs.destroy != 'true'
+    if: needs.check_destroy.outputs.destroy != 'true'
     # dentro do repositorio foi criado 2 enviroments dev e prod. 
     # um para o branch develop e outro para a branch main.
     # cada environment do repositorio possui variaveis e secrets diferentes
     # assim é possivel recuperar envs e secrets de acordo com o ambiente de forma dinamica.
     # aqui é o enviroment é selecionado de acordo com a branch que disparou o workflow
-    # environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
-    # outputs:  # Define os outputs do Job1
-    #   destroy: ${{ steps.read-destroy-config.outputs.destroy }}
-    env:
-      # aqui vão as variaveis de ambiente dentro da vm do workflow.
-      # variaveis de ambiente no terraform são definidas com o prefixo TF_VAR_ e são recuperadas
-      # de acordo com o environment selecionado pelo job
-      TF_VAR_project_name: ${{ github.event.repository.name }}
 
     steps:
       - name: Checkout code
@@ -154,8 +151,9 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - terraform
-    #   - check_destroy
-    # if: needs.check_destroy.outputs.destroy != 'true'
+      - check_destroy
+    if: needs.check_destroy.outputs.destroy != 'true'
+    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
 
     steps:
     - name: Checkout code
