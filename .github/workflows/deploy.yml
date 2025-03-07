@@ -17,7 +17,7 @@ on:
       # possivel usar o paths-ignore para ignorar diretórios
       - 'infra/**'
       - 'sam-app/**'
-      - './destroy_config.json'
+      - 'destroy/**'
 permissions:
   id-token: write
   contents: read
