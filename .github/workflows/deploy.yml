@@ -113,6 +113,7 @@ jobs:
 
     - name: Build and Deploy API
       run: |
+        cd sam-app
         sam build
         sam deploy \
         --stack-name sam-hello-world \
