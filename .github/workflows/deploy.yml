@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       destroy: ${{ steps.read-destroy-config.outputs.destroy }}
+    env:
+      ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,6 +36,7 @@ jobs:
         id: read-destroy-config
         run: |
           DESTROY="$(jq -r ".$ENVIRONMENT" ./infra/destroy_config.json)"
+          echo $DESTROY
           echo "destroy=$(echo $DESTROY)" >> $GITHUB_OUTPUT
 
   destroy-infra:
