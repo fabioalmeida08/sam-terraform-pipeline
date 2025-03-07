@@ -77,6 +77,14 @@ jobs:
           --region ${{ secrets.AWS_REGION }} \
           --no-prompts             
 
+      - name: Terraform Init
+        run: |
+          cd infra && terraform init \
+            -backend-config="bucket=${{ secrets.BACKEND_BUCKET }}" \
+            -backend-config="key=${{ github.event.repository.name }}" \
+            -backend-config="region=${{ secrets.BACKEND_REGION }}" \
+            -backend-config="use_lockfile=true"          
+            
       - name: Terraform Destroy
         id: terraform-destroy
         run: cd infra &&
