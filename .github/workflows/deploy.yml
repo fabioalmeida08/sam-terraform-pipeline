@@ -121,13 +121,12 @@ jobs:
       if: needs.terraform.outputs.destroy == 'true'
       run: |
         cd sam-app
-        sam destroy \
+        sam delete \
         --stack-name sam-hello-world \
         --region ${{ secrets.AWS_REGION }} \
-        --no-confirm-changeset \
-        --no-fail-on-empty-changeset
+        --no-prompts       
 
-        
+
     - name: Build and Deploy API
       if: needs.terraform.outputs.destroy != 'true'
       run: |
