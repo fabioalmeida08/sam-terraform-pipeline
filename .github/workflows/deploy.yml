@@ -83,7 +83,12 @@ jobs:
             -backend-config="bucket=${{ secrets.BACKEND_BUCKET }}" \
             -backend-config="key=${{ github.event.repository.name }}" \
             -backend-config="region=${{ secrets.BACKEND_REGION }}" \
-            -backend-config="use_lockfile=true"          
+            -backend-config="use_lockfile=true"     
+            
+      - name: Terraform Plan
+        run: cd infra &&
+          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
+          terraform plan -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -out="$ENVIRONMENT.plan"                 
             
       - name: Terraform Destroy
         id: terraform-destroy
@@ -129,11 +134,6 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Read destroy configuration
-        id: read-destroy-config
-        run: |
-          DESTROY="$(jq -r ".$ENVIRONMENT" ./infra/destroy_config.json)"
-          echo "destroy=$(echo $DESTROY)" >> $GITHUB_OUTPUT
 
       - name: Terraform Init
         run: |
@@ -147,14 +147,12 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        if: steps.read-destroy-config.outputs.destroy != 'true'
         id: terraform-plan
         run: cd infra &&
           terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
           terraform plan -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -out="$ENVIRONMENT.plan"
 
       - name: Terraform Apply
-        if: steps.read-destroy-config.outputs.destroy != 'true'
         id: terraform-apply
         run: cd infra &&
           terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
