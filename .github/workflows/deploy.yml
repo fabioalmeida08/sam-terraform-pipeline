@@ -22,7 +22,49 @@ permissions:
   contents: read
 
 jobs:
+  destroy-infra:
+    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+    runs-on: ubuntu-latest
+    outputs:
+      destroy: ${{ steps.read-destroy-config.outputs.destroy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4      
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ secrets.AWS_REGION }}    
+        
+      - name: Read destroy configuration
+        id: read-destroy-config
+        run: |
+          DESTROY="$(jq -r ".destroy" ./infra/destroy_config.json)"
+          echo "destroy=$(echo $DESTROY)" >> $GITHUB_OUTPUT
+
+      - name: Destroy Sam
+        if: steps.read-destroy-config.outputs.destroy == 'true'
+        run: |
+          cd sam-app
+          sam delete \
+          --stack-name ${{ secrets.SAM_STACK_NAME }} \
+          --region ${{ secrets.AWS_REGION }} \
+          --no-prompts             
+
+      - name: Terraform Destroy
+        if: steps.read-destroy-config.outputs.destroy == 'true'
+        id: terraform-destroy
+        run: cd infra &&
+          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
+          terraform destroy -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -auto-approve
+
   terraform:
+    # depende do job destroy-infra
+    needs: destroy-infra
+    # executa somente se o destroy for diferente de true
+    if: needs.destroy-infra.outputs.destroy != 'true'
     # dentro do repositorio foi criado 2 enviroments dev e prod. 
     # um para o branch develop e outro para a branch main.
     # cada environment do repositorio possui variaveis e secrets diferentes
@@ -73,12 +115,12 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
-      - name: Terraform Destroy
-        if: steps.read-destroy-config.outputs.destroy == 'true'
-        id: terraform-destroy
-        run: cd infra &&
-          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
-          terraform destroy -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -auto-approve
+      # - name: Terraform Destroy
+      #   if: steps.read-destroy-config.outputs.destroy == 'true'
+      #   id: terraform-destroy
+      #   run: cd infra &&
+      #     terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
+      #     terraform destroy -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -auto-approve
 
       - name: Terraform Plan
         if: steps.read-destroy-config.outputs.destroy != 'true'
@@ -117,23 +159,13 @@ jobs:
     - name: Install AWS SAM CLI
       uses: aws-actions/setup-sam@v2
 
-    - name: Destroy Sam
-      if: needs.terraform.outputs.destroy == 'true'
-      run: |
-        cd sam-app
-        sam delete \
-        --stack-name sam-hello-world \
-        --region ${{ secrets.AWS_REGION }} \
-        --no-prompts       
-
-
     - name: Build and Deploy API
       if: needs.terraform.outputs.destroy != 'true'
       run: |
         cd sam-app
         sam build
         sam deploy \
-        --stack-name sam-hello-world \
+        --stack-name ${{ secrets.SAM_STACK_NAME }} \
         --s3-bucket ${{ secrets.AWS_S3_SAM_BUCKET }} \
         --capabilities CAPABILITY_IAM \
         --region ${{ secrets.AWS_REGION }} \
