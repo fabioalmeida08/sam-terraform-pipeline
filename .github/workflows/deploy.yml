@@ -83,12 +83,7 @@ jobs:
             -backend-config="bucket=${{ secrets.BACKEND_BUCKET }}" \
             -backend-config="key=${{ github.event.repository.name }}" \
             -backend-config="region=${{ secrets.BACKEND_REGION }}" \
-            -backend-config="use_lockfile=true"     
-            
-      - name: Terraform Plan
-        run: cd infra &&
-          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
-          terraform plan -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -out="$ENVIRONMENT.plan"                 
+            -backend-config="use_lockfile=true"                     
             
       - name: Terraform Destroy
         id: terraform-destroy
