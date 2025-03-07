@@ -1,0 +1,71 @@
+name: 'Destroy Infrastructure'
+
+on:
+  workflow_dispatch:  # Permite execução manual
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'destroy_config.json'  # Apenas roda se este arquivo mudar
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+
+jobs:
+  check_destroy:
+    runs-on: ubuntu-latest
+    outputs:
+      destroy: ${{ steps.read-destroy-config.outputs.destroy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read destroy configuration
+        id: read-destroy-config
+        run: |
+          DESTROY=$(jq -r ".$ENVIRONMENT" ./infra/destroy_config.json)
+          echo "destroy=$DESTROY" >> $GITHUB_OUTPUT
+
+  destroy-infra:
+    needs: check_destroy
+    if: needs.check_destroy.outputs.destroy == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TF_VAR_project_name: ${{ github.event.repository.name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4      
+
+      - name: Configure AWS credentials
+        uses: ./.github/actions/configure-aws
+        with:
+          role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Destroy AWS SAM
+        run: |
+          cd sam-app
+          sam delete \
+            --stack-name ${{ secrets.SAM_STACK_NAME }} \
+            --region ${{ secrets.AWS_REGION }} \
+            --no-prompts             
+
+      - name: Terraform Init
+        run: |
+          cd infra && terraform init \
+            -backend-config="bucket=${{ secrets.BACKEND_BUCKET }}" \
+            -backend-config="key=${{ github.event.repository.name }}" \
+            -backend-config="region=${{ secrets.BACKEND_REGION }}" \
+            -backend-config="use_lockfile=true"                     
+            
+      - name: Terraform Destroy
+        run: |
+          cd infra
+          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
+          terraform destroy -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -auto-approve
