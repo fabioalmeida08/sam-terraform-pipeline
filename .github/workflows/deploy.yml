@@ -32,8 +32,7 @@ jobs:
   check_destroy:
     runs-on: ubuntu-latest
     outputs:
-      destroy: ${{ steps.read-destroy-config.outputs.destroy }}
-    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}      
+      destroy: ${{ steps.read-destroy-config.outputs.destroy }}   
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -60,10 +59,10 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}          
 
-      - name: Setup python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13' 
+      # - name: Setup python
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: '3.13' 
       
       - name: Install AWS SAM CLI
         uses: aws-actions/setup-sam@v2      
