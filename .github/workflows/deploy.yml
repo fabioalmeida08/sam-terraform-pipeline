@@ -20,7 +20,6 @@ on:
 permissions:
   id-token: write
   contents: read
-
 env:
   ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
 
@@ -43,7 +42,7 @@ jobs:
   destroy-infra:
     needs: check_destroy
     if: needs.check_destroy.outputs.destroy == 'true'
-    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+    # environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
     runs-on: ubuntu-latest
     env:
       TF_VAR_project_name: ${{ github.event.repository.name }}      
@@ -102,7 +101,7 @@ jobs:
     # cada environment do repositorio possui variaveis e secrets diferentes
     # assim é possivel recuperar envs e secrets de acordo com o ambiente de forma dinamica.
     # aqui é o enviroment é selecionado de acordo com a branch que disparou o workflow
-    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+    # environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
     runs-on: ubuntu-latest
     defaults:
       run:
