@@ -21,13 +21,14 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+
 jobs:
   check_destroy:
     runs-on: ubuntu-latest
     outputs:
       destroy: ${{ steps.read-destroy-config.outputs.destroy }}
-    env:
-      ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -45,7 +46,6 @@ jobs:
     environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
     runs-on: ubuntu-latest
     env:
-      ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
       TF_VAR_project_name: ${{ github.event.repository.name }}      
     steps:
       - name: Checkout code
@@ -113,7 +113,6 @@ jobs:
       # aqui vão as variaveis de ambiente dentro da vm do workflow.
       # variaveis de ambiente no terraform são definidas com o prefixo TF_VAR_ e são recuperadas
       # de acordo com o environment selecionado pelo job
-      ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
       TF_VAR_project_name: ${{ github.event.repository.name }}
 
     steps:
