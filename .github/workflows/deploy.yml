@@ -22,30 +22,51 @@ permissions:
   contents: read
 
 jobs:
-  destroy-infra:
-    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+  check_destroy:
     runs-on: ubuntu-latest
     outputs:
       destroy: ${{ steps.read-destroy-config.outputs.destroy }}
     steps:
       - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read destroy configuration
+        id: read-destroy-config
+        run: |
+          DESTROY="$(jq -r ".$ENVIRONMENT" ./infra/destroy_config.json)"
+          echo "destroy=$(echo $DESTROY)" >> $GITHUB_OUTPUT
+
+  destroy-infra:
+    needs: check_destroy
+    if: needs.check_destroy.outputs.destroy == 'true'
+    environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v4      
 
+        
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
           role-session-name: GitHub_to_AWS_via_FederatedOIDC
           aws-region: ${{ secrets.AWS_REGION }}    
-        
-      - name: Read destroy configuration
-        id: read-destroy-config
-        run: |
-          DESTROY="$(jq -r ".destroy" ./infra/destroy_config.json)"
-          echo "destroy=$(echo $DESTROY)" >> $GITHUB_OUTPUT
+          
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13' 
+      
+      - name: Install AWS SAM CLI
+        uses: aws-actions/setup-sam@v2      
+          
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
       - name: Destroy Sam
-        if: steps.read-destroy-config.outputs.destroy == 'true'
         run: |
           cd sam-app
           sam delete \
@@ -54,7 +75,6 @@ jobs:
           --no-prompts             
 
       - name: Terraform Destroy
-        if: steps.read-destroy-config.outputs.destroy == 'true'
         id: terraform-destroy
         run: cd infra &&
           terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
@@ -62,9 +82,9 @@ jobs:
 
   terraform:
     # depende do job destroy-infra
-    needs: destroy-infra
+    needs: check_destroy
+    if: needs.check_destroy.outputs.destroy != 'true'
     # executa somente se o destroy for diferente de true
-    if: needs.destroy-infra.outputs.destroy != 'true'
     # dentro do repositorio foi criado 2 enviroments dev e prod. 
     # um para o branch develop e outro para a branch main.
     # cada environment do repositorio possui variaveis e secrets diferentes
@@ -75,8 +95,8 @@ jobs:
     defaults:
       run:
         shell: bash
-    outputs:  # Define os outputs do Job1
-      destroy: ${{ steps.read-destroy-config.outputs.destroy }}
+    # outputs:  # Define os outputs do Job1
+    #   destroy: ${{ steps.read-destroy-config.outputs.destroy }}
     env:
       # aqui vão as variaveis de ambiente dentro da vm do workflow.
       # variaveis de ambiente no terraform são definidas com o prefixo TF_VAR_ e são recuperadas
@@ -115,13 +135,6 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
-      # - name: Terraform Destroy
-      #   if: steps.read-destroy-config.outputs.destroy == 'true'
-      #   id: terraform-destroy
-      #   run: cd infra &&
-      #     terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
-      #     terraform destroy -var-file="./envs/$ENVIRONMENT/terraform.tfvars" -auto-approve
-
       - name: Terraform Plan
         if: steps.read-destroy-config.outputs.destroy != 'true'
         id: terraform-plan
@@ -138,7 +151,10 @@ jobs:
 
   aws-sam:
     runs-on: ubuntu-latest
-    needs: terraform
+    needs:
+      - terraform
+      - check_destroy
+    if: needs.check_destroy.outputs.destroy != 'true'
 
     steps:
     - name: Checkout code
@@ -160,7 +176,6 @@ jobs:
       uses: aws-actions/setup-sam@v2
 
     - name: Build and Deploy API
-      if: needs.terraform.outputs.destroy != 'true'
       run: |
         cd sam-app
         sam build
