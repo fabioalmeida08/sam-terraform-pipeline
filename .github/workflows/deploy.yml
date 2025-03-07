@@ -16,6 +16,7 @@ on:
       # somente executa o workflow se houver alterações no diretórios listados
       # possivel usar o paths-ignore para ignorar diretórios
       - 'infra/**'
+      - 'sam-app/**'
 permissions:
   id-token: write
   contents: read
@@ -48,7 +49,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
           role-session-name: GitHub_to_AWS_via_FederatedOIDC
-          aws-region: ${{ vars.AWS_REGION }}     
+          aws-region: ${{ secrets.AWS_REGION }}     
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -62,9 +63,9 @@ jobs:
       - name: Terraform Init
         run: |
           cd infra && terraform init \
-            -backend-config="bucket=${{ vars.BACKEND_BUCKET }}" \
+            -backend-config="bucket=${{ secrets.BACKEND_BUCKET }}" \
             -backend-config="key=${{ github.event.repository.name }}" \
-            -backend-config="region=${{ vars.BACKEND_REGION }}" \
+            -backend-config="region=${{ secrets.BACKEND_REGION }}" \
             -backend-config="use_lockfile=true"
 
       - name: Terraform Validate
@@ -91,31 +92,32 @@ jobs:
           terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
           terraform apply "$ENVIRONMENT.plan"
 
-  # deploy:
-  #   runs-on: ubuntu-latest
+  aws-sam:
+    runs-on: ubuntu-latest
+    needs: terraform
 
-  #   steps:
-  # - name: Checkout code
-  #   uses: actions/checkout@v4      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4      
 
-  # - name: Configure AWS credentials
-  #   uses: aws-actions/configure-aws-credentials@v4
-  #   with:
-  #     role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
-  #     role-session-name: GitHub_to_AWS_via_FederatedOIDC
-  #     aws-region: ${{ vars.AWS_REGION }}    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+        role-session-name: GitHub_to_AWS_via_FederatedOIDC
+        aws-region: ${{ secrets.AWS_REGION }}    
 
-  #     - name: Install AWS SAM CLI
-  #       uses: aws-actions/setup-sam@v2
+    - name: Install AWS SAM CLI
+      uses: aws-actions/setup-sam@v2
 
 
-  #     - name: Build and Deploy API
-  #       run: |
-  #         sam build
-  #         sam deploy \
-  #         --stack-name sam-hello-world \
-  #         --s3-bucket ${{ secrets.AWS_S3_BUCKET }} \
-  #         --capabilities CAPABILITY_IAM \
-  #         --region ${{ secrets.AWS_REGION }} \
-  #         --no-confirm-changeset \
-  #         --no-fail-on-empty-changeset         
+    - name: Build and Deploy API
+      run: |
+        sam build
+        sam deploy \
+        --stack-name sam-hello-world \
+        --s3-bucket ${{ secrets.AWS_S3_SAM_BUCKET }} \
+        --capabilities CAPABILITY_IAM \
+        --region ${{ secrets.AWS_REGION }} \
+        --no-confirm-changeset \
+        --no-fail-on-empty-changeset         
