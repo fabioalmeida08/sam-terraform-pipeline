@@ -107,6 +107,11 @@ jobs:
         role-session-name: GitHub_to_AWS_via_FederatedOIDC
         aws-region: ${{ secrets.AWS_REGION }}    
 
+    - name: Setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13' 
+    
     - name: Install AWS SAM CLI
       uses: aws-actions/setup-sam@v2
 
