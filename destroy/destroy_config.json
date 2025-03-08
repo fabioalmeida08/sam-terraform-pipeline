@@ -1,6 +1,6 @@
 {
   "dev": true,
   "prod": true,
-  "staging": true
+  "staging": false
 }
       
