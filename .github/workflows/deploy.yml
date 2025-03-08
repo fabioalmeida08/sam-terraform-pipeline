@@ -184,3 +184,12 @@ jobs:
         --region ${{ secrets.SAM_AWS_REGION }} \
         --no-confirm-changeset \
         --no-fail-on-empty-changeset         
+
+    - name: Capture API URL and Update Summary
+      run: |
+        cd sam-app
+        API_URL=$(sam list stack-outputs --stack-name ${{ secrets.SAM_STACK_NAME }} --output json | jq -r '.[] | select(.OutputKey=="HelloWorldApi") | .OutputValue')
+        echo "## Hello World API URL" >> $GITHUB_STEP_SUMMARY
+        echo "``````" >> $GITHUB_STEP_SUMMARY
+        echo "$API_URL" >> $GITHUB_STEP_SUMMARY
+        echo "``````" >> $GITHUB_STEP_SUMMARY        
