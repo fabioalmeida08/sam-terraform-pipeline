@@ -1,6 +1,6 @@
 # variaveis/secrets de repositório que devem ser criadas
 # criar também dois environments no repositorio dev e prod
-# - DEFAULT_AWS_REGION / região da aws
+# - DEFAULT_AWS_REGION / região default que o openid connect vai assumir
 # - TERRAFORM_BACKEND_BUCKET / nome do bucket s3 para armazenar o estado do terraform
 # - TERRAFORM_BACKEND_REGION / região do bucket s3 do backend do terraform
 # - AWS_ASSUME_ROLE_ARN / arn da role que o workflow vai assumir com openid connect
@@ -147,8 +147,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - terraform
-      - check_destroy
-    if: needs.check_destroy.outputs.destroy != 'true'
     environment: ${{ github.ref == 'refs/heads/develop' && 'dev' || 'prod' }}
 
     steps:
