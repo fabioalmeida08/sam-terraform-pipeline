@@ -143,7 +143,7 @@ jobs:
           cd infra
           terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
           terraform apply "$ENVIRONMENT.plan"
-          BUCKET_NAME=$(terraform output -raw bucket_name)
+          BUCKET_NAME=$(terraform output -raw s3_bucket_name)
           echo "## Nome do Bucket S3" >> $GITHUB_STEP_SUMMARY
           echo "``````" >> $GITHUB_STEP_SUMMARY
           echo "$BUCKET_NAME" >> $GITHUB_STEP_SUMMARY
