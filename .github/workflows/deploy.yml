@@ -139,8 +139,9 @@ jobs:
 
       - name: Terraform Apply
         id: terraform-apply
-        run: cd infra &&
-          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT &&
+        run: |
+          cd infra
+          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
           terraform apply "$ENVIRONMENT.plan"
           BUCKET_NAME=$(terraform output -raw bucket_name)
           echo "## Nome do Bucket S3" >> $GITHUB_STEP_SUMMARY
