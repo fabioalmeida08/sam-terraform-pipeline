@@ -2,7 +2,7 @@
 
 Este repositório é um projeto de aprendizado que tem como finalidade implementar uma pipeline de infraestrutura como código (IaC) utilizando Terraform, AWS SAM e GitHub Actions. O objetivo é explorar conceitos como automação de CI/CD, gerenciamento de ambientes, uso de secrets e environments do GitHub, e integração com AWS.
 
-O projeto consiste em um workflow simples que utiliza o Terraform para criar buckets no Amazon S3 de forma dinâmica, adaptando-se ao ambiente (como dev ou prod) e aplicando configurações específicas conforme o branch onde o código é editado e commitado. Após a conclusão bem-sucedida do deploy via Terraform, o workflow executa uma etapa subsequente que implanta um API Gateway integrado a uma função Lambda.
+O projeto consiste em um workflow simples que utiliza o Terraform para criar buckets no Amazon S3 de forma dinâmica, adaptando-se ao ambiente (como dev ou prod) e aplicando configurações específicas conforme o branch onde o código é editado e commitado. Após a conclusão bem-sucedida do deploy via Terraform, o workflow executa uma etapa subsequente que implanta um API Gateway integrado a uma função Lambda. 
 
 
 ![fluxo do projeto](./sam_terraform_pipeline.png)
